@@ -4,7 +4,8 @@ import serial
 import serial.tools.list_ports
 import tkinter.messagebox as messagebox
 from PIL import Image, ImageTk
-import struct
+
+
 
 def update_com_ports(event=None):
     combox_com_port['values'] = get_available_ports()
@@ -24,30 +25,39 @@ def send_command(command_byte, channel, target):
     if target > 0xFFFF:
         target = 0xFFFF
     
-    command_packet = bytes([command_byte, channel,
-                            (target >> 8) & 0xFF,
-                            target & 0xFF])
+    # Do not send if value conflicts with the start byte
+    high_byte = (target >> 8) & 0xFF
+    low_byte = target & 0xFF
+
+    if high_byte == 0xA5 or low_byte == 0xA5 or high_byte == 0xAB or low_byte == 0xAB or high_byte == 0xCD or low_byte == 0xCD:
+        # console.insert(tk.END, "Error: Value conflicts with start byte.\n")
+        # console.see(tk.END)
+        return
+
+    command_packet = bytes([0xA5, command_byte, channel, high_byte, low_byte, 0xAB, 0xCD])
 
     hex_command_packet = ' '.join(f"0x{byte:02X}" for byte in command_packet)
+
     console.insert(tk.END, f"Sent: {hex_command_packet}\n")
     console.see(tk.END)
 
     ser.write(command_packet)
 
+
 def position_slider_command(val, i):
     if motor_vars[i].get():
         target_position = int(round(float(val)))  # Convert the float to an integer
-        send_command(0x01, i+1, target_position)
+        send_command(0x01, i, target_position)
 
 def accel_slider_command(val, i):
     if motor_vars[i].get():
         target_accel = int(round(float(val)))  # Convert the float to an integer
-        send_command(0x02, i+1, target_accel)  # 0x02 is a placeholder for your actual command byte
+        send_command(0x02, i, target_accel)  # 0x02 is a placeholder for your actual command byte
 
 def speed_slider_command(val, i):
     if motor_vars[i].get():
         target_speed = int(round(float(val)))  # Convert the float to an integer
-        send_command(0x03, i+1, target_speed)  # 0x03 is a placeholder for your actual command byte
+        send_command(0x03, i, target_speed)  # 0x03 is a placeholder for your actual command byte
 
 def hand_position(pos):
     positions = {
@@ -120,6 +130,7 @@ notebook.pack(fill='both', expand=1)
 main_frame = ttk.Frame(notebook)
 help_frame = ttk.Frame(notebook)
 
+
 # Add frames to notebook (tabs)
 notebook.add(main_frame, text='Main')
 notebook.add(help_frame, text='Help')
@@ -185,17 +196,17 @@ for i in range(6):  # assuming 5 motors
     cb.grid(row=i+3, column=1, padx=5, pady=5)
     checkbuttons.append(cb)
     
-    pos_slider = ttk.Scale(main_frame, from_=250, to_=1700, length=150, command=lambda val, i=i: position_slider_command(val, i))
+    pos_slider = ttk.Scale(main_frame, from_=250, to_=2700, length=150, command=lambda val, i=i: position_slider_command(val, i))
     pos_slider.grid(row=i+3, column=2, columnspan=2, padx=5, pady=5)
     position_sliders.append(pos_slider)
 
     # Acceleration slider for each motor
-    accel_slider = ttk.Scale(main_frame, from_=250, to_=1700, length=150, command=lambda val, i=i: accel_slider_command(val, i))
+    accel_slider = ttk.Scale(main_frame, from_=0, to_=150, length=150, command=lambda val, i=i: accel_slider_command(val, i))
     accel_slider.grid(row=i+3, column=4, columnspan=2, padx=5, pady=5)
     accel_sliders.append(accel_slider)
 
     # Speed slider for each motor
-    speed_slider = ttk.Scale(main_frame, from_=250, to_=1700, length=150, command=lambda val, i=i: speed_slider_command(val, i))
+    speed_slider = ttk.Scale(main_frame, from_=0, to_=150, length=150, command=lambda val, i=i: speed_slider_command(val, i))
     speed_slider.grid(row=i+3, column=6, columnspan=2, padx=5, pady=5)
     speed_sliders.append(speed_slider)
 
@@ -250,6 +261,7 @@ enable_controls(False)
 
 # Start with serial connection as None
 ser = None
+
 
 root.mainloop()
 
